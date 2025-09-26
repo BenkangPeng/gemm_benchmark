@@ -1,0 +1,3 @@
+[submodule "reference/tvm_gpu_gemm"]
+	path = reference/tvm_gpu_gemm
+	url = git@github.com:BenkangPeng/tvm_gpu_gemm.git
