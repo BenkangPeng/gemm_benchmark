@@ -2,8 +2,9 @@ import tvm
 import tvm.script.tir as T
 import numpy as np
 
-M = K = N = 4096
+M = K = N = 8192
 dtype = "float32"
+
 
 @tvm.script.ir_module
 class GEMM:
@@ -24,22 +25,35 @@ class GEMM:
 mod = GEMM
 sch = tvm.tir.Schedule(mod)
 
-# gridDim = {4096}, blockDim = {32, 32}
+# blockDim = {32, 32}
+# binding blockIdx and threadIdx
 i, j, k = sch.get_loops("C")
-i0, i1 = sch.split(i,[None,32])
-j0, j1 = sch.split(j,[None,32])
+i0, i1 = sch.split(i, [None, 32])
+j0, j1 = sch.split(j, [None, 32])
 sch.reorder(i0, j0, i1, j1)
-sch.bind(i0, "blockIdx.x")
-sch.bind(j0, "blockIdx.y")
-sch.bind(i1, "threadIdx.x")
-sch.bind(j1, "threadIdx.y")
+sch.bind(i0, "blockIdx.y")
+sch.bind(j0, "blockIdx.x")
+sch.bind(i1, "threadIdx.y")
+sch.bind(j1, "threadIdx.x")
+
+# the order of thread binding above outperforms the order below:
+# sch.bind(i0, "blockIdx.x")
+# sch.bind(j0, "blockIdx.y")
+# sch.bind(i1, "threadIdx.x")
+# sch.bind(j1, "threadIdx.y")
+
+# cache write
+C_cache_write = sch.cache_write("C", 0, "local")
+# move block `C_cache_write` under loop`j1`
+sch.reverse_compute_at(C_cache_write, j1)
 
 # sch.mod.show()
+# exit()
 
 rt_mod = tvm.build(sch.mod, target="cuda")
 
 cuda_prog = rt_mod.imported_modules[0].get_source()
-with open("__cuda__/Code0_native_gemm.cu", "w") as f:
+with open("__cuda__/Code1_blocked_gemm.cu", "w") as f:
     f.write(cuda_prog)
 
 dev = tvm.cuda(0)
@@ -56,4 +70,4 @@ timer = evaluator(a, b, c).mean
 np.testing.assert_allclose(c.numpy(), a_np @ b_np, rtol=1e-5, atol=1e-5)
 
 print(f"Time cost: {timer * 1000} ms")
-print(f"Native GEMM({M}x{K}x{N}): {2 * M * K * N / timer / 1e12} TFLOPS")
+print(f"Blocked GEMM({M}x{K}x{N}): {2 * M * K * N / timer / 1e12} TFLOPS")
