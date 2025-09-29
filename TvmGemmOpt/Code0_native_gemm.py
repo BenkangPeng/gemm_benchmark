@@ -10,7 +10,8 @@ class GEMM:
     @T.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, (M, K), dtype=dtype)
+        # A = T.match_buffer(a, (M, K), dtype=dtype)
+        AT = T.match_buffer(a, (K, M), dtype=dtype)
         B = T.match_buffer(b, (K, N), dtype=dtype)
         C = T.match_buffer(c, (M, N), dtype=dtype)
         for i, j, k in T.grid(M, N, K):
@@ -18,7 +19,7 @@ class GEMM:
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
-                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+                C[vi, vj] = C[vi, vj] + AT[vk, vi] * B[vk, vj]
 
 
 mod = GEMM

@@ -8,7 +8,7 @@ from utils import dump
 M = K = N = 16384
 dtype = "float32"
 dir_name = os.path.dirname(os.path.abspath(__file__))
-log_path = os.path.join(dir_name, "__IRModule__/Code2_threadtiling")
+log_path = os.path.join(dir_name, "__IRModule__/Code2_thread_tiling")
 cuda_path = os.path.join(dir_name, "__cuda__/")
 
 @tvm.script.ir_module

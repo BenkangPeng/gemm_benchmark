@@ -65,6 +65,8 @@ __global__ void Sgemm(float *__restrict__ A, float *__restrict__ B,
   float frag_a[2][THREAD_SIZE_Y];
   float frag_b[2][THREAD_SIZE_X];
   // registers load global memory
+  // If each thread in a threadblock loads 4 floats at once using float4, then
+  // it will take ldg_num_a times to load A(bmxbk) into shared memory.
   const int ldg_num_a =
       BLOCK_SIZE_M * BLOCK_SIZE_K / (THREAD_NUM_PER_BLOCK * 4);
   const int ldg_num_b =
@@ -73,6 +75,8 @@ __global__ void Sgemm(float *__restrict__ A, float *__restrict__ B,
   float ldg_b_reg[4 * ldg_num_b];
 
   // threads number in one row
+  // 一个threadblock中的所有threads一起使用float4将一个A tile(bm x bk)加载到shread mem
+  // 按行主序加载A tile的一行元素, 需要BLOCK_SIZE_K / 4 个threads
   const int A_TILE_THREAD_PER_ROW = BLOCK_SIZE_K / 4;
   const int B_TILE_THREAD_PER_ROW = BLOCK_SIZE_N / 4;
 
@@ -99,6 +103,7 @@ __global__ void Sgemm(float *__restrict__ A, float *__restrict__ B,
         FETCH_FLOAT4(A[OFFSET(A_TILE_ROW_START + i, // row
                               A_TILE_COL,           // col
                               K)]);
+    /// transpose A
     As[0][A_TILE_COL][A_TILE_ROW_START + i] = ldg_a_reg[ldg_index];
     As[0][A_TILE_COL + 1][A_TILE_ROW_START + i] = ldg_a_reg[ldg_index + 1];
     As[0][A_TILE_COL + 2][A_TILE_ROW_START + i] = ldg_a_reg[ldg_index + 2];
