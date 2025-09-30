@@ -6,14 +6,14 @@ from utils import dump
 import os
 
 dtype = "float32"
-M = N = 2048
+M = N = 4096
 dim = namedtuple('dim', ['x', 'y', 'z'])
-gridDim = dim(x=1, y=1, z=1)
+gridDim = dim(x=32, y=32, z=1)
 blockDim = dim(x=16, y=16, z=1)
 
 assert M == N
 assert M % blockDim.x == 0 and N % blockDim.y == 0
-vthreadDim = dim(x=M // blockDim.x, y=N // blockDim.y, z=1)
+vthreadDim = dim(x=M // gridDim.x // blockDim.x, y=N // gridDim.y // blockDim.y, z=1)
 
 IRModule_path = os.path.join(os.path.dirname(os.path.abspath(
     __file__)), "__IRModule__/Code3.1_test_warp_tiling")
@@ -37,11 +37,16 @@ class transpose:
 sch = tvm.tir.Schedule(transpose)
 block_B = sch.get_block("B")
 i, j = sch.get_loops(block_B)
-i0, i1 = sch.split(i, factors=[blockDim.y, None])
-j0, j1 = sch.split(j, factors=[blockDim.x, None])
-sch.reorder(i0, j0, i1, j1)
-sch.bind(i0, "threadIdx.y")
-sch.bind(j0, "threadIdx.x")
+i0, i1, i2 = sch.split(i, factors=[gridDim.y, blockDim.y, None])
+j0, j1, j2 = sch.split(j, factors=[gridDim.x, blockDim.x, None])
+sch.reorder(i0, j0, i2, j2, i1, j1)
+# sch.reorder(i0, j0, i1, j1, i2, j2)
+sch.bind(i0, "blockIdx.y")
+sch.bind(j0, "blockIdx.x")
+sch.bind(i1, "threadIdx.y")
+sch.bind(j1, "threadIdx.x")
+sch.unroll(i2)
+sch.unroll(j2)
 
 # sch.mod.show()
 
@@ -69,11 +74,13 @@ print(f"Time cost without vthread: {timer * 1000} ms")
 sch = tvm.tir.Schedule(transpose)
 block_B = sch.get_block("B")
 i, j = sch.get_loops(block_B)
-i0, i1 = sch.split(i, factors=[vthreadDim.y, blockDim.y])
-j0, j1 = sch.split(j, factors=[vthreadDim.x, blockDim.x])
-sch.reorder(i0, j0, i1, j1)
-sch.bind(i0, "vthread.y")
-sch.bind(j0, "vthread.x")
+i0, i1, i2 = sch.split(i, factors=[gridDim.y, blockDim.y, None])
+j0, j1, j2 = sch.split(j, factors=[gridDim.x, blockDim.x, None])
+sch.reorder(i0, j0, i2, j2, i1, j1)
+sch.bind(i0, "blockIdx.y")
+sch.bind(j0, "blockIdx.x")
+sch.bind(i2, "vthread.y")
+sch.bind(j2, "vthread.x")
 sch.bind(i1, "threadIdx.y")
 sch.bind(j1, "threadIdx.x")
 
@@ -84,7 +91,8 @@ dump(rt_mod.imported_modules[0].get_source(),
      cuda_path, "Code3.1_test_warp_tiling_with_vthread.cu")
 
 evaluator = rt_mod.time_evaluator(rt_mod.entry_name, dev, number=10)
-timer = evaluator(a, b).mean
+timer2 = evaluator(a, b).mean
 np.testing.assert_allclose(b.numpy(), a_np.T, rtol=1e-3, atol=1e-3)
 
-print(f"Time cost with vthread: {timer * 1000} ms")
+print(f"Time cost with vthread: {timer2 * 1000} ms")
+print(f"Execution time decreases: {(timer - timer2) / timer * 100}%")

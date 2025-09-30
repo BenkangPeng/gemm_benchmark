@@ -119,3 +119,4 @@ timer = evaluator(a, b, c).mean
 print(f"Time cost: {timer * 1000} ms")
 print(f"Blocked GEMM({M}x{K}x{N}): {2 * M * K * N / timer / 1e12} TFLOPS")
 np.testing.assert_allclose(c.numpy(), a_np @ b_np, rtol=1e-3, atol=1e-3)
+print("✅✅✅ CUDA result is correct")
