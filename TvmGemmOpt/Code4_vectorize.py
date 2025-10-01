@@ -69,7 +69,8 @@ dump(sch.mod["main"].script(), log_path, "1.binding.py")
 sch.reverse_compute_at(block_local_C, tx, preserve_unit_loops=True)
 k0, k1 = sch.split(k, factors=[None, BK])
 sch.reorder(k0, k1, sy, sx)
-sch.decompose_reduction(block_C, tx)
+# decompose the stage of C initialization to the out loop, avoiding rapid execution.
+sch.decompose_reduction(block_C, k0)
 dump(sch.mod["main"].script(), log_path, "2.split.py")
 
 
@@ -110,7 +111,8 @@ dump(sch.mod["main"].script(), log_path, "4.vectorize.py")
 ctx = tvm.cuda(0)
 cuda_mod = tvm.build(sch.mod, target="cuda")
 
-dump(cuda_mod.imported_modules[0].get_source(), log_path, "tmp.cu")
+dump(cuda_mod.imported_modules[0].get_source(),
+     cuda_path, "Code4_vectorize.cu")
 
 cuda_a = tvm.nd.array(np.arange(M * K).reshape((M, K)).astype(dtype), ctx)
 cuda_b = tvm.nd.array(np.arange(K * N).reshape((K, N)).astype(dtype), ctx)
