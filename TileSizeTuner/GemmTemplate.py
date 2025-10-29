@@ -18,8 +18,8 @@ dtype = "float32"
 dim3 = namedtuple('dim3', ['x', 'y', 'z'])
 rtile0 = [128, 128, 8]
 rtile1 = [16, 8, 1]
-gridDim = dim3(x=M//rtile0[0], y=M//rtile0[1], z=1)
-blockDim = dim3(x=rtile0[0]//rtile1[0], y=rtile0[1]//rtile1[1], z=1)
+gridDim = dim3(x=N//rtile0[1], y=M//rtile0[0], z=1)
+blockDim = dim3(x=rtile0[1]//rtile1[1], y=rtile0[0]//rtile1[0], z=1)
 BK = rtile0[2]
 
 
@@ -53,14 +53,13 @@ dump(sch.mod["main"].script(), log_path, "0.origin.py")
 i, j, k = sch.get_loops(block_C)
 by, ty, vy = sch.split(i, factors=[gridDim.y, blockDim.y, None])
 bx, tx, vx = sch.split(j, factors=[gridDim.x, blockDim.x, None])
-sch.reorder(by, bx, vy, vx, ty, tx) # right
-# sch.reorder(by, bx, ty, tx, vx, vy) # wrong
+sch.reorder(by, bx, vy, vx, ty, tx)
 sch.bind(by, "blockIdx.y")
 sch.bind(bx, "blockIdx.x")
-sch.bind(ty, "threadIdx.y")
-sch.bind(tx, "threadIdx.x")
 sch.bind(vy, "vthread.y")
 sch.bind(vx, "vthread.x")
+sch.bind(ty, "threadIdx.y")
+sch.bind(tx, "threadIdx.x")
 
 
 sch.reverse_compute_at(block_local_C, tx, preserve_unit_loops=True)
