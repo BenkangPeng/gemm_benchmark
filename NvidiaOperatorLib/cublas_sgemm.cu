@@ -4,22 +4,6 @@
 #include <iostream>
 #include <stdlib.h>
 
-/// copy from
-/// https://github.com/xlite-dev/LeetCUDA/blob/main/kernels/sgemm/sgemm_cublas.cu
-/// single precision(float32) GEMM
-void cublas_sgemm(float *A, float *B, float *C, int M, int N, int K) {
-  cublasHandle_t handle = nullptr;
-  cublasCreate(&handle);
-  cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH);
-
-  static float alpha = 1.0;
-  static float beta = 0.0;
-
-  cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
-               N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F,
-               CUBLAS_GEMM_DEFAULT);
-}
-
 int main(int argc, char **argv) {
 
   int M, K, N;
@@ -28,10 +12,11 @@ int main(int argc, char **argv) {
     M = atoi(argv[1]);
     K = atoi(argv[2]);
     N = atoi(argv[3]);
-  }
-  else{
+  } else {
     std::cerr << "Usage: " << argv[0] << " <M> <K> <N>" << std::endl;
-    std::cerr << "Default GEMM size: 4096x4096x4096 with single precision(float32)" << std::endl;
+    std::cerr
+        << "Default GEMM size: 4096x4096x4096 with single precision(float32)"
+        << std::endl;
   }
 
   float *h_A = (float *)malloc(M * K * sizeof(float));
@@ -56,15 +41,30 @@ int main(int argc, char **argv) {
   cublasSetMatrix(K, N, sizeof(float), h_B, K, d_B, K);
 
   // warmup
-  std::cout << "Execute single precision(float32) GEMM with " << M << "x" << K << "x" << N << std::endl;
-  cublas_sgemm(d_A, d_B, d_C, M, N, K);
+  static float alpha = 1.0;
+  static float beta = 0.0;
+  std::cout << "Execute single precision(float32) GEMM with " << M << "x" << K
+            << "x" << N << std::endl;
+  // cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, d_B,
+  // CUDA_R_32F,
+  //              N, d_A, CUDA_R_32F, K, &beta, d_C, CUDA_R_32F, N,
+  //              CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT);
+  cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, M, N, K, &alpha, d_A, M, d_B, K,
+              &beta, d_C, M);
+  cudaDeviceSynchronize();
 
-  auto start = std::chrono::high_resolution_clock::now();
   const int run_times = 10;
+  auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < run_times; ++i) {
-    cublas_sgemm(d_A, d_B, d_C, M, N, K);
+    // cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, d_B,
+    // CUDA_R_32F,
+    //            N, d_A, CUDA_R_32F, K, &beta, d_C, CUDA_R_32F, N,
+    //            CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT);
+    cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, M, N, K, &alpha, d_A, M, d_B,
+                K, &beta, d_C, M);
     cudaDeviceSynchronize();
   }
+  cudaDeviceSynchronize();
   auto end = std::chrono::high_resolution_clock::now();
 
   cublasGetMatrix(M, N, sizeof(float), d_C, M, h_C, M);
